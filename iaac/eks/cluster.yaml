@@ -1,0 +1,37 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: 1d692184473970509f0e165e4d62c8c025ba163f
+  region: us-east-1
+  version: "1.17"
+
+availabilityZones:
+  - "us-east-1a"
+
+vpc:
+  cidr: "172.30.0.0/16"
+
+managedNodeGroups:
+  - name: worker-t2-small-1
+    minSize: 1
+    maxSize: 2
+    desiredCapacity: 1
+    volumeSize: 10
+    instanceType: t2.small
+    privateNetworking: true
+    ssh:
+      allow: true
+    labels:
+      role: worker
+    tags:
+      nodegroup-role: worker
+      k8s.io/cluster-autoscaler/node-template/label/role: worker
+    iam:
+      withAddonPolicies:
+        externalDNS: true
+        certManager: true
+        autoScaler: true
+        ebs: true
+        fsx: true
+        efs: true

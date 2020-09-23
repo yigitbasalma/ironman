@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Enjoy it =)</title>
+
+    <link rel="stylesheet" type="text/css" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+
+    <div class="container h-100" style="margin-top: 10%;">
+        <div class="row align-items-center h-100">
+            <div class="col-6 mx-auto">
+                <div class="jumbotron">
+                    <form id="calc-form" method="POST" action="/">
+                      <div class="row justify-content-md-center">
+                        <div class="col-md-10 ">
+                            <h3 style="text-align: center;">Factorial Calculator</h3>
+                            <input name="number" type="text" class="form-control" id="number" placeholder="Example. 12">
+                        </div>
+                      </div>
+                    </form>
+
+                    <div class="row justify-content-md-center" style="display: none;" id="result-div">
+                        <div class="col-md-12 offset-md-4" style="margin-top: 5%;">
+                            <span>Result is <span id="result" style="font-weight: bolder;"></span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <script>
+        $('#number').on('keydown', function(e) {
+            if (e.which == 13) {
+                e.preventDefault();
+                var form = $('#calc-form');
+                $.ajax({
+                    type: $(form).attr("method"),
+                    url: $(form).attr("action"),
+                    data: $(form).serialize(),
+                    dataType: "json",
+                    success: function(data) {
+                        if(data.error) {
+                            alert(data.error_info);
+                        } else {
+                            $('#result').text(data.result);
+                            $('#result-div').css('display', 'block');
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

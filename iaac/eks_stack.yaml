@@ -1,0 +1,76 @@
+- hosts: localhost
+  vars:
+    eks_cluster_name: 1d692184473970509f0e165e4d62c8c025ba163f
+    eks_cluster_config_location: "{{ base_dir }}/iaac/eks/cluster.yaml"
+    ecr_repo_name: case/case
+    aws_customer_id: 032629812057
+    kubeconfig_file: "{{ base_dir }}/kubeconfig-eks"
+    deployment_file_base: "{{ base_dir }}/container-app/kubernetes"
+    deployment_namespace: default
+    app_name: case-app
+    service_name: case-app-service
+  tasks:
+    - name: Check cluster is exits
+      shell: |
+        aws eks describe-cluster --name {{ eks_cluster_name }} 2> /dev/null
+      ignore_errors: yes
+      register: cluster_status
+
+    - name: Cluster creation
+      shell: |
+        eksctl create cluster -f {{ eks_cluster_config_location }}
+      when: cluster_status.rc != 0
+
+    - name: Get kubeconfig
+      shell: |
+        aws eks update-kubeconfig --name {{ eks_cluster_name }} --kubeconfig {{ kubeconfig_file }}
+
+    - name: Create ECR repo
+      ecs_ecr:
+        name: "{{ ecr_repo_name }}"
+
+    - name: Build and push docker image
+      shell: |
+        cd {{ base_dir }}/container-app && \
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin {{ aws_customer_id }}.dkr.ecr.us-east-1.amazonaws.com && \
+          docker build -t {{ aws_customer_id }}.dkr.ecr.us-east-1.amazonaws.com/{{ ecr_repo_name }}:latest . && \
+          docker push {{ aws_customer_id }}.dkr.ecr.us-east-1.amazonaws.com/{{ ecr_repo_name }}:latest && \
+          cd {{ base_dir }}
+
+    - name: Find deployment files
+      find:
+        paths: "{{ deployment_file_base }}"
+        patterns: "*.yaml"
+      register: kubernetes_files
+
+    - name: Create the namespace
+      k8s:
+        name: "{{ deployment_namespace }}"
+        kubeconfig: "{{ kubeconfig_file }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+
+    - name: Apply deployment files
+      k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig_file }}"
+        namespace: "{{ deployment_namespace }}"
+        definition: "{{ lookup('template', '{{ item.path }}') }}"
+      with_items: "{{ kubernetes_files.files }}"
+
+    - name: Get load balancer address
+      shell: |
+        export KUBECONFIG={{ kubeconfig_file }} && \
+          kubectl get services --namespace {{ deployment_namespace }} {{ service_name }} --output jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+      register: lb_address
+
+    - debug:
+        msg: "Connection address is: '{{ lb_address.stdout }}'"
+
+    - name: Wait for port 80
+      wait_for:
+        host: "{{ lb_address.stdout }}"
+        port: 80
+        delay: 10
+        timeout: 300

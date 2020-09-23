@@ -1,0 +1,65 @@
+- hosts: localhost
+  vars:
+    bucket_name: case-bucket-112
+  tasks:
+    - name: Create a zip archive
+      archive:
+        path: "{{ base_dir }}/serverless-app/app.py"
+        dest: "{{ base_dir }}/csv_parser.zip"
+        format: zip
+
+    - name: Create bucket
+      s3_bucket:
+        name: "{{ bucket_name }}"
+        state: present
+
+    - name: Create lambda
+      lambda:
+        name: 'CSVParser'
+        state: present
+        zip_file: '{{ base_dir }}/csv_parser.zip'
+        runtime: 'python3.8'
+        role: 'arn:aws:iam::032629812057:role/CaseLambda'
+        handler: 'app.lambda_handler'
+        timeout: 30
+        tags:
+          purpose: 'case'
+      register: lambda_result
+
+    - name: Lambda S3 event notification policy
+      lambda_policy:
+        state: "{{ state | default('present') }}"
+        function_name: "{{ lambda_result.configuration.function_name }}"
+        statement_id: lambda_s3_csv
+        action: lambda:InvokeFunction
+        principal: s3.amazonaws.com
+        source_arn: "arn:aws:s3:::{{ bucket_name }}"
+        source_account: 032629812057
+
+    - name: Attach trigger
+      s3_bucket_notification:
+        state: present
+        event_name: "case_events"
+        bucket_name: "{{ bucket_name }}"
+        lambda_function_arn: "{{ lambda_result.configuration.function_arn }}"
+        events: ["s3:ObjectCreated:*"]
+        suffix: .csv
+      ignore_errors: yes
+
+    - name: Create dynamo table
+      dynamodb_table:
+        name: case
+        hash_key_name: csv_data
+        hash_key_type: STRING
+        region: us-east-1
+        tags:
+          purpose: 'case'
+
+    - name: Upload sample data
+      aws_s3:
+        bucket: "{{ bucket_name }}"
+        src: "{{ base_dir }}/serverless-app/data.csv"
+        object: "data.csv"
+        mode: put
+        permission: ["public-read"]
+

@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ app_name }}
+  name: {{ app_name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ app_name }}
+  template:
+    metadata:
+      labels:
+        app: {{ app_name }}
+    spec:
+      containers:
+      - image: {{ aws_customer_id }}.dkr.ecr.us-east-1.amazonaws.com/{{ ecr_repo_name }}:latest
+        name: {{ app_name }}
